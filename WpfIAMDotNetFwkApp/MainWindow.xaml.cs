@@ -1,8 +1,16 @@
 ﻿using IdentityModel.OidcClient;
+using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Runtime.Remoting.Contexts;
+using System.Security.Claims;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -14,6 +22,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using WpfWebView2;
+using static IdentityModel.OidcConstants;
 
 namespace WpfIAMDotNetFwkApp
 {
@@ -29,10 +38,16 @@ namespace WpfIAMDotNetFwkApp
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
+      const string authority = @"https://tdkeycloak.azurewebsites.net/auth/realms/Technidata";
+      const string clientId = "tdnexlabs";
+      const string audience = "account";
+      const string nameClaimType = "name";
+      const string roleClaimTemplate = "resource_access.tdnexlabs.roles";
+
       var options = new OidcClientOptions()
       {
-        Authority = "https://tdkeycloak.azurewebsites.net/auth/realms/Technidata",
-        ClientId = "tdnexlabs",
+        Authority = authority,
+        ClientId = clientId,
         Scope = "openid profile email",
         RedirectUri = "https://tdnexlabs",
         Browser = new WpfEmbeddedBrowser(),
@@ -48,6 +63,61 @@ namespace WpfIAMDotNetFwkApp
       try
       {
         loginResult = await _oidcClient.LoginAsync();
+        
+        // Just to illustrate the differences
+        string idTokenString = loginResult?.IdentityToken;        
+        var idToken = new JwtSecurityToken(idTokenString);
+        var idTokenClaims = idToken.Claims;
+
+        // HERE THE ACCESS TOKEN!!!
+        string accessTokenString = loginResult?.AccessToken;
+        var accessToken = new JwtSecurityToken(accessTokenString);
+        // Or new JwtSecurityTokenHandler().ReadJwtToken(accessTokenString);
+
+        string metadataAddress = $"{authority}{(!authority.EndsWith("/", StringComparison.Ordinal) ? "/" : string.Empty)}.well-known/openid-configuration";
+        var configurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(metadataAddress, new OpenIdConnectConfigurationRetriever());
+        var authorityConfiguration = await configurationManager.GetConfigurationAsync(CancellationToken.None);
+
+        var validationParameters = new TokenValidationParameters();
+
+        validationParameters.RoleClaimType = roleClaimTemplate;
+        validationParameters.NameClaimType = nameClaimType;
+        validationParameters.ValidAudience = audience;
+        validationParameters.ValidateIssuer = true;
+        validationParameters.ValidateAudience = false;
+        validationParameters.IssuerSigningKeys = authorityConfiguration.SigningKeys;
+        validationParameters.ValidIssuers = new[] { authorityConfiguration.Issuer };
+
+        List<Exception> validationFailures = null;
+        SecurityToken validatedToken = null;
+        var securityTokenValidators = new List<ISecurityTokenValidator> { new JwtSecurityTokenHandler() };
+
+        foreach (var validator in securityTokenValidators)
+        {
+          if (validator.CanReadToken(accessTokenString))
+          {
+            ClaimsPrincipal principal;
+            try
+            {
+              principal = validator.ValidateToken(accessTokenString, validationParameters, out validatedToken);
+            }
+            catch (Exception ex)
+            {              
+              if (validationFailures == null)
+              {
+                validationFailures = new List<Exception>(1);
+              }
+              validationFailures.Add(ex);
+              continue;
+            }                       
+          }
+        }
+
+        if (validationFailures != null)
+        {
+          txbMessage.Text = $"Unexpected Error: [{string.Join(",", validationFailures.Select(v => v.Message))}]";
+          return;
+        }
       }
       catch (Exception exception)
       {
@@ -61,7 +131,7 @@ namespace WpfIAMDotNetFwkApp
       }
       else
       {
-        txbMessage.Text = loginResult.User.Identity.Name;
+        txbMessage.Text = $"Name: {loginResult.User.Identity.Name} - ";
       }
     }
   }
