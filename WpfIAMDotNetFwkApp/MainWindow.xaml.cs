@@ -38,7 +38,7 @@ namespace WpfIAMDotNetFwkApp
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
-      const string authority = @"https://tdkeycloak.azurewebsites.net/auth/realms/Technidata";
+      const string authority = @"http://localhost:9080/realms/Technidata";
       const string clientId = "tdnexlabs";
       const string audience = "account";
       const string nameClaimType = "name";
@@ -75,7 +75,10 @@ namespace WpfIAMDotNetFwkApp
         // Or new JwtSecurityTokenHandler().ReadJwtToken(accessTokenString);
 
         string metadataAddress = $"{authority}{(!authority.EndsWith("/", StringComparison.Ordinal) ? "/" : string.Empty)}.well-known/openid-configuration";
-        var configurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(metadataAddress, new OpenIdConnectConfigurationRetriever());
+
+        // Warning-Https is disable here
+        var configurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(metadataAddress, new OpenIdConnectConfigurationRetriever(), new HttpDocumentRetriever() { RequireHttps = false });
+       
         var authorityConfiguration = await configurationManager.GetConfigurationAsync(CancellationToken.None);
 
         var validationParameters = new TokenValidationParameters();
