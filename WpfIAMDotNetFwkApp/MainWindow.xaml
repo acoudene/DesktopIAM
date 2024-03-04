@@ -8,12 +8,14 @@
         Loaded="Window_Loaded"
         Title="MainWindow" Height="450" Width="800">
     <Grid>
-        <TextBlock x:Name="txbMessage"
+        <ScrollViewer HorizontalScrollBarVisibility="Auto">
+            <TextBlock x:Name="txbMessage"
                    Text="Signing In..."
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    FontSize="24"
                    FontFamily="Segoe UI Light, San Serif"
                    TextWrapping="Wrap"/>
+        </ScrollViewer>
     </Grid>
 </Window>

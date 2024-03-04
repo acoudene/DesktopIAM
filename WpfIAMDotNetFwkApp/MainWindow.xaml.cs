@@ -134,7 +134,7 @@ namespace WpfIAMDotNetFwkApp
       }
       else
       {
-        txbMessage.Text = $"Name: {loginResult.User.Identity.Name} - ";
+        txbMessage.Text = $"Name: {loginResult.User.Identity.Name} - Claims: {string.Join(" \n ", loginResult.User.Claims.Select(c=> $"Type={c.Type}-Value={c.Value}"))}";
       }
     }
   }
